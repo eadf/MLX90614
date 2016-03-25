@@ -297,10 +297,12 @@ uint16_t MLX90614::read16(uint8_t cmd) {
     uint16_t val;
     CRC8 crc(MLX90614_CRC8POLY);
 
+    // Prepare the device for 'data read'
+    I2Cdev::readBytes(_addr, cmd, 0, buffer);
+    
     // experimentally determined delay to prevent read errors
     // (manufacturer's data sheet has left something out)
-    // Can't do this with I2Cdev API
-    //delayMicroseconds(MLX90614_XDLY);
+    delayMicroseconds(MLX90614_XDLY);
 
     if (3!= I2Cdev::readBytes(_addr, cmd, 3, buffer)) {
         // no idea if this is the correct error to raise

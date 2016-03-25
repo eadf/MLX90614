@@ -67,7 +67,11 @@ MLX90614::MLX90614(uint8_t i2caddr) {
  *  \brief  Initialize the device and the i2c interface.
  */
 boolean MLX90614::begin(void) {
+#if MLX90614_I2C_IMPLEMENTATION == MLX90614_ARDUINO_WIRE
     Wire.begin();
+#elif MLX90614_I2C_IMPLEMENTATION == MLX90614_I2CDEVLIB
+    I2Cdev::begin();
+#endif
     return true;
 }
 
@@ -211,6 +215,8 @@ uint8_t MLX90614::getSMBusAddr(void) {
     return _addr;
 }
 
+#if MLX90614_I2C_IMPLEMENTATION == MLX90614_ARDUINO_WIRE
+
 /**
  *  \brief            Return a 16 bit value read from RAM or EEPROM.
  *  \param [in] cmd   Command to send (register to read from).
@@ -279,6 +285,70 @@ void MLX90614::write16(uint8_t cmd, uint16_t data) {
     Wire.write(_pec = _crc8);
     _rwError |= (1 << Wire.endTransmission(false)) >> 1;
 }
+
+#elif MLX90614_I2C_IMPLEMENTATION == MLX90614_I2CDEVLIB
+
+/**
+ *  \brief            Return a 16 bit value read from RAM or EEPROM.
+ *  \param [in] cmd   Command to send (register to read from).
+ *  \return           Value read from memory.
+ */
+uint16_t MLX90614::read16(uint8_t cmd) {
+    uint16_t val;
+    CRC8 crc(MLX90614_CRC8POLY);
+
+    // experimentally determined delay to prevent read errors
+    // (manufacturer's data sheet has left something out)
+    // Can't do this with I2Cdev API
+    //delayMicroseconds(MLX90614_XDLY);
+
+    if (3!= I2Cdev::readBytes(_addr, cmd, 3, buffer)) {
+        // no idea if this is the correct error to raise
+        _rwError |= MLX90614_INVALIDATA;
+        return 0;
+    }
+    // assemble the data low byte first
+    val = buffer[1]<<8 | buffer[0];
+    // get the PEC (CRC-8 of all bytes)
+    _pec = buffer[2];
+    
+    // build our own CRC-8 of all received bytes
+    crc.crc8(_addr << 1);
+    crc.crc8(cmd);
+    crc.crc8((_addr << 1) + 1);
+    crc.crc8(lowByte(val));
+    _crc8 = crc.crc8(highByte(val));
+
+    // set error status bit if CRC mismatch
+    if(_crc8 != _pec) _rwError |= MLX90614_RXCRC;
+
+    return val;
+}
+
+/**
+ *  \brief            Write a 16 bit value to memory.
+ *  \param [in] cmd   Command to send (register to write to).
+ *  \param [in] data  Value to write.
+ */
+void MLX90614::write16(uint8_t cmd, uint16_t data) {
+    CRC8 crc(MLX90614_CRC8POLY);
+
+    // build the CRC-8 of all bytes to be sent
+    crc.crc8(_addr << 1);
+    crc.crc8(cmd);
+    crc.crc8(lowByte(data));
+    _crc8 = crc.crc8(highByte(data));
+
+    // write the data low byte first
+    buffer[0] = lowByte(data);
+    buffer[1] = highByte(data);
+    _pec = buffer[2] = _crc8;
+    if (3!=I2Cdev::writeBytes(_addr, cmd, 3, buffer)) {
+       // no idea if this is the correct error to raise
+      _rwError |= MLX90614_TXDATANACK;
+    }
+}
+#endif
 
 /**
  *  \brief            Return a 16 bit value read from EEPROM.

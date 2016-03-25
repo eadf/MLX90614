@@ -44,7 +44,24 @@
 #else
     #include "WProgram.h"
 #endif
+
+// -----------------------------------------------------------------------------
+// I2C interface implementation options
+// -----------------------------------------------------------------------------
+#define MLX90614_ARDUINO_WIRE   1 // Wire object from Arduino
+#define MLX90614_I2CDEVLIB      2 // i2Cdevlib (https://github.com/jrowberg/i2cdevlib)
+
+#ifndef MLX90614_I2C_IMPLEMENTATION
+#define MLX90614_I2C_IMPLEMENTATION MLX90614_ARDUINO_WIRE
+//#define MLX90614_I2C_IMPLEMENTATION MLX90614_I2CDEVLIB
+#endif
+
+#if MLX90614_I2C_IMPLEMENTATION == MLX90614_ARDUINO_WIRE
 #include "Wire.h"
+#elif MLX90614_I2C_IMPLEMENTATION == MLX90614_I2CDEVLIB
+#include "I2Cdev.h"
+#endif
+
 #include "Property.h"
 #include "Crc8.h"
 
@@ -151,6 +168,9 @@ private:
     uint8_t  getCRC8()          {return _crc8;};            /**< 8 bit CRC getter */
     uint8_t  getPEC()           {return _pec;};             /**< PEC getter */
 //  void     setCRC8(uint8_t v) {_crc8 = v;}  // template for setter
+#if MLX90614_I2C_IMPLEMENTATION == MLX90614_I2CDEVLIB
+    uint8_t  buffer[3];
+#endif
 };
 
 #endif /* _MLX90614_H_ */

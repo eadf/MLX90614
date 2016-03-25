@@ -38,7 +38,6 @@
 #define __STDC_CONSTANT_MACROS
 
 #include <Arduino.h>
-#include <Wire.h>
 #include <MLX90614.h>
 #include "MelexisTest.h"
 #include "printf.h"
